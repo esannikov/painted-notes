@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<style>:root{color-scheme:light dark} html{-webkit-text-size-adjust:100%} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+<title>Ноти на картинах</title>
+<meta name="description" content="Як машина читає намальовані ноти і знаходить твір у великих базах: метод, перевірки на відомих відповідях, нові знахідки і межі. Робочий звіт, жовтень 2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<style>
+/* Layout: one reading column of about 70 characters; figures and tables widen to 1100px; a quiet margin of staff-line rules marks section starts. */
+:root{
+  --paper:#f4f5f2; --card:#fbfbf9; --ink:#1d2224; --muted:#596366; --line:#d3d8d5; --accent:#1f5c66; --accent-soft:#e2edee;
+  --good:#2f6b3a; --good-soft:#e5f0e6; --warn:#7a5200; --warn-soft:#f6ecd6; --bad:#8b2f2f; --bad-soft:#f5e3e1;
+  --display:"Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --body:"Literata", "Iowan Old Style", Georgia, serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --col:44rem; --wide:70rem;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#121617; --card:#181e20; --ink:#e4e8e6; --muted:#9aa5a7; --line:#2c3437; --accent:#82c0c9; --accent-soft:#1c2c2f;
+  --good:#8fc99c; --good-soft:#1c2a1f; --warn:#e2b860; --warn-soft:#2c2614; --bad:#e89a92; --bad-soft:#2f1d1c; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --paper:#121617; --card:#181e20; --ink:#e4e8e6; --muted:#9aa5a7; --line:#2c3437; --accent:#82c0c9; --accent-soft:#1c2c2f;
+  --good:#8fc99c; --good-soft:#1c2a1f; --warn:#e2b860; --warn-soft:#2c2614; --bad:#e89a92; --bad-soft:#2f1d1c; color-scheme:dark }
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{background:var(--paper); color:var(--ink); font-family:var(--body); font-size:1.02rem; line-height:1.62; padding-inline:16px; padding-block:2.5rem 4rem}
+main{display:grid; gap:3.2rem}
+.col{max-width:var(--col); margin-inline:auto; width:100%; min-width:0}
+.wide{max-width:var(--wide); margin-inline:auto; width:100%; min-width:0}
+h1,h2,h3{font-family:var(--display); font-weight:600; line-height:1.1; text-wrap:balance; margin:0}
+h1{font-size:clamp(2.6rem,6vw,4.2rem); letter-spacing:.005em}
+h2{font-size:clamp(1.8rem,3.6vw,2.4rem)}
+h3{font-size:1.45rem; margin-top:.4rem}
+p{margin:0}
+a{color:var(--accent); text-underline-offset:.18em}
+a:focus-visible, audio:focus-visible, summary:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px}
+.eyebrow{font-family:var(--mono); font-size:.74rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+.lede{font-size:1.18rem; color:var(--ink)}
+.stack{display:grid; gap:1rem}
+.stack-s{display:grid; gap:.55rem}
+.muted{color:var(--muted)}
+.staff{display:grid; gap:4px; margin-block:.2rem .9rem; width:5.5rem}
+.staff i{display:block; height:1px; background:var(--accent); opacity:.55}
+header.col{display:grid; gap:1.1rem}
+.meta{font-family:var(--mono); font-size:.8rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:.4rem 1.2rem}
+nav.toc{font-family:var(--mono); font-size:.82rem; display:flex; flex-wrap:wrap; gap:.4rem .9rem; border-block:1px solid var(--line); padding-block:.8rem}
+nav.toc a{text-decoration:none}
+ul.plain{margin:0; padding-left:1.1rem; display:grid; gap:.45rem}
+ol.steps{margin:0; padding:0; list-style:none; counter-reset:step; display:grid; gap:2.4rem}
+ol.steps > li{counter-increment:step; display:grid; gap:.8rem}
+ol.steps > li > h3::before{content:"Крок " counter(step) ". "; font-family:var(--mono); font-size:.8rem; letter-spacing:.06em; color:var(--accent); display:block; margin-bottom:.15rem}
+figure{margin:0; display:grid; gap:.5rem}
+figure img{display:block; width:100%; height:auto; border:1px solid var(--line); background:var(--card)}
+figcaption{font-size:.86rem; color:var(--muted); max-width:var(--col)}
+.pair{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr)); align-items:start}
+.tablewrap{overflow-x:auto; border:1px solid var(--line); background:var(--card)}
+table{border-collapse:collapse; width:100%; font-size:.9rem; font-variant-numeric:tabular-nums}
+th,td{padding:.55rem .7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line)}
+th{font-family:var(--mono); font-weight:500; font-size:.74rem; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); background:var(--paper)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono); white-space:nowrap}
+.pill{display:inline-block; font-family:var(--mono); font-size:.72rem; letter-spacing:.03em; padding:.12rem .5rem; border-radius:999px; white-space:nowrap}
+.pill.control{background:var(--accent-soft); color:var(--accent)}
+.pill.new{background:var(--good-soft); color:var(--good)}
+.pill.open{background:var(--warn-soft); color:var(--warn)}
+.pill.no{background:var(--bad-soft); color:var(--bad)}
+.formula{font-family:var(--mono); font-size:.86rem; background:var(--card); border:1px solid var(--line); padding:.9rem 1rem; overflow-x:auto; line-height:1.7}
+.note{border-left:2px solid var(--warn); padding:.2rem 0 .2rem 1rem; color:var(--ink)}
+.note strong{color:var(--warn)}
+.figures{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(min(100%,12.5rem),1fr))}
+.fig{background:var(--card); border:1px solid var(--line); padding:1rem; display:grid; gap:.2rem; align-content:start}
+.fig b{font-family:var(--display); font-size:2rem; font-weight:600; line-height:1; font-variant-numeric:tabular-nums}
+.fig span{font-size:.86rem; color:var(--muted)}
+.case{display:grid; gap:1.1rem; padding-top:1.4rem; border-top:1px solid var(--line)}
+.case-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:.5rem 1rem}
+audio{width:100%; max-width:32rem}
+details{border:1px solid var(--line); background:var(--card); padding:.7rem 1rem}
+summary{cursor:pointer; font-family:var(--mono); font-size:.85rem}
+code{font-family:var(--mono); font-size:.88em; background:var(--accent-soft); padding:.05em .3em; border-radius:3px; overflow-wrap:anywhere}
+footer.col{font-size:.88rem; color:var(--muted); display:grid; gap:.6rem; border-top:1px solid var(--line); padding-top:1.4rem}
+</style>
+</head>
+<body>
+
+<main>
+<header class="col">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <p class="eyebrow">Робочий звіт · 14 жовтня 2026</p>
+  <h1>Ноти на картинах</h1>
+  <p class="lede">Як комп'ютер читає ноти, намальовані на старих картинах, і знаходить твір у великих нотних базах. Що вже працює, що ми знайшли нового і де метод зупиняється.</p>
+  <div class="meta"><span>Для доповіді на конгресі AEC, Гамбург, листопад 2026</span><span>Підготовлено Claude (Anthropic) для Євгена Саннікова</span><span>Частину кейсів вів Codex</span></div>
+  <nav class="toc" aria-label="Зміст"><a href="#korotko">Коротко</a><a href="#metod">Як це працює</a><a href="#chysla">Числа і швидкість</a><a href="#kontrol">Відомі відповіді</a><a href="#nove">Нові знахідки</a><a href="#ni">Де не вийшло</a><a href="#mezhi">Межі методу</a><a href="#dali">Що перевірити</a><a href="#dzherela">Джерела</a></nav>
+</header>
+
+<section class="col stack" id="korotko">
+  <h2>Коротко</h2>
+  <ul class="plain">
+    <li>На багатьох картинах XVI–XVIII століть намальовано ноти. Часто їх можна прочитати, але музейні описи твору не називають.</li>
+    <li>Ми читаємо висоти нот на картині, перетворюємо їх на числа і порівнюємо з кожним місцем кожного голосу у двох відкритих базах: <strong>483 662 голоси</strong> (46,3 млн нот) і <strong>2 048 200 початків творів</strong>. Пошук займає від кількох секунд до кількох хвилин на ноутбуці.</li>
+    <li>Ноти читає мала нейромережа, навчена лише на штучних картинках, які ми малюємо самі. Жодної розмітки з картин у навчанні немає.</li>
+    <li>На трьох картинах із відомою відповіддю пошук ставить правильний твір першим. На всіх трьох це вдається і з читанням, яке зробила сама модель.</li>
+    <li>Дві нові знахідки там, де твір ніхто не назвав: арія Ґрауна на анонімній картині і застільна пісня в книзі на картині Ла Іра. В обох слова підказали твір, а ноти це незалежно перевірили.</li>
+  </ul>
+  <div class="tablewrap wide" style="max-width:var(--wide)">
+  <table>
+    <thead><tr><th>Картина</th><th>Що було відомо</th><th>Що зробили ми</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>Віже-Лебрен, «Баронеса де Крюссоль», 1785 (Тулуза)</td><td>Назва гімну написана на аркуші</td><td>Ноти без назви: Ґлюк перший серед 2 млн початків; модель читає сама</td><td><span class="pill control">контроль</span></td></tr>
+      <tr><td>Караваджо, «Відпочинок на шляху до Єгипту», бл. 1597 (Рим, Доріа-Памфілі)</td><td>Мотет Баулдевейна «Quam pulchra es» (музикознавці, давно)</td><td>Мотет перший серед 483 666 голосів; з читанням моделлю 0,787 проти 0,380</td><td><span class="pill control">контроль</span></td></tr>
+      <tr><td>Ван Утрехт, «Бенкетний натюрморт», 1644 (Рейксмузей)</td><td>Ді Стефано, 2023</td><td>Наосліп за нотами: бас Крекійона перший; модель, у тому числі з власними лінійками</td><td><span class="pill control">контроль</span></td></tr>
+      <tr><td>Анонім, «Aria Allegretto», XVIII ст. (аукціон Van Ham)</td><td>Назва за заголовком аркуша, твір не названо</td><td>Слова → арія Ґрауна з «Монтесуми» (1755); ноти моделлю і розмір 3/4 лишають тільки її</td><td><span class="pill new">нове, перевірити</span></td></tr>
+      <tr><td>Ла Ір, «Алегорія музики», 1649 (Метрополітен-музей)</td><td>«Пісня на два голоси»</td><td>Слова → застільна пісня Мульньє 1633; намальована музика інша, справжня двоголоса</td><td><span class="pill new">нове: слова</span></td></tr>
+      <tr><td>Аппіані, портрет музиканта, бл. 1800 (Клівленд)</td><td>Музей: ноти читаються, твір не встановлено</td><td>Модель: 10 голівок приблизно з 16; не знайдено; передано Codex</td><td><span class="pill open">відкрито</span></td></tr>
+      <tr><td>Гондекутер, «Пташиний концерт», 1670</td><td>Не встановлено</td><td>Не знайдено</td><td><span class="pill no">ні</span></td></tr>
+      <tr><td>Гейсбрехтс, обманка зі скрипкою, 1672 (Копенгаген)</td><td>Не встановлено</td><td>Ноти намальовано штрихами без голівок</td><td><span class="pill no">ні</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="col stack" id="metod">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Як це працює</h2>
+  <p>Шість кроків від знімка картини до назви твору. Приклади взято з картини Ла Іра (Метрополітен-музей), де ноти добре видно.</p>
+  <ol class="steps">
+    <li>
+      <h3>Знімок</h3>
+      <p>Беремо лише музейні знімки у відкритому доступі в повній роздільності. Збільшуємо звичайною інтерполяцією. Генеративне «покращення» заборонене: на картині Ван Утрехта ми перевірили, що воно перемальовує ноти.</p>
+      <figure class="wide"><img src="img/lahyre_painting.jpg" alt="Лоран де Ла Ір, Алегорія музики, 1649" loading="lazy" width="1400" height="1031"><figcaption>Лоран де Ла Ір, «Алегорія музики», 1649. Метрополітен-музей, 50.189. Знімок 3805 × 2804 точок; нотна книга праворуч унизу.</figcaption></figure>
+    </li>
+    <li>
+      <h3>Рядок нотного стану</h3>
+      <p>Вирізаємо кожен рядок, повертаємо його і знаходимо п'ять лінійок. Потім рядок «розпрямляємо»: верхня лінійка лягає на висоту 8, нижня на 0. Один щабель дорівнює половині відстані між лінійками: нота на лінійці має парну висоту, нота між лінійками — непарну. Висоту записуємо як виміряли, наприклад 6,4, без округлення.</p>
+      <figure class="wide"><img src="img/lahyre_book.jpg" alt="Нотна книга на картині Ла Іра" loading="lazy" width="1100" height="1016"><figcaption>Книга на картині, збільшено вдвічі. Ліва сторінка: вправа і табулатура для лютні. Права: пісня на два голоси, вісім рядків.</figcaption></figure>
+      <figure class="wide"><img src="img/lahyre_strip_straightened.jpg" alt="Розпрямлений рядок із розміткою щаблів" loading="lazy" width="1300" height="394"><figcaption>Перший рядок правої сторінки після розпрямлення. Пунктир — розрахункові лінійки; ліворуч підписано висоти від −4 до 12. Між лінійками на знімку 8–10 точок.</figcaption></figure>
+    </li>
+    <li>
+      <h3>Знаки</h3>
+      <p>Спочатку ми позначали голівки нот вручну, за збільшеними вирізками з мірними шкалами. З 13 жовтня це робить нейромережа. Готових розмічених картин із нотами немає, тому ми навчаємо її на штучних рядках, які малює наша програма:</p>
+      <ul class="plain">
+        <li>мелодії справжні: 150 000 уривків із нотної бази, без творів, на яких ми перевіряємо метод;</li>
+        <li>вигляд старий: ромбічні й овальні голівки, похилі штилі, ключі, крапки, знаки альтерації, слова під рядком, а для XVIII століття ребра, паузи і форшлаги;</li>
+        <li>рядок псуємо так, як його псує картина: лінійки від руки, розірвані контури голівок, тріщини, зерно полотна, малий оригінал, збільшений згодом (5–14 точок між лінійками);</li>
+        <li>програма сама знає, де який знак, тому мітки точні.</li>
+      </ul>
+      <div class="pair wide">
+        <figure><img src="img/generator_mensural.jpg" alt="Штучні рядки в старій нотації" loading="lazy" width="952" height="833"><figcaption>Штучні рядки в нотації XVI–XVII століть. Кольорові крапки над нотами — мітки, які знає програма.</figcaption></figure>
+        <figure><img src="img/generator_18th.jpg" alt="Штучні рядки в нотації XVIII століття" loading="lazy" width="952" height="833"><figcaption>Те саме для нотації XVIII століття. Зелена і помаранчева лінії — верхня й нижня лінійки, які модель теж вчиться знаходити.</figcaption></figure>
+      </div>
+      <p>Модель — мала згорткова мережа (1,3 млн параметрів). Для кожного з 12 типів знаків вона видає карту, де пік означає знак у цьому місці, і ще дві карти для верхньої й нижньої лінійки. Типи: ціла нота, порожня зі штилем угору або вниз, зафарбована зі штилем угору або вниз, квадратна, крапка, пауза, ключ, кустос, бемоль, дієз. Навчання триває 10–22 хвилини на ноутбуці.</p>
+      <figure class="wide"><img src="img/caravaggio_model_S4.jpg" alt="Відповіді моделі на рядку Караваджо" loading="lazy" width="1042" height="628"><figcaption>Відповіді моделі на четвертому рядку Караваджо, звірені оком. W — ціла нота, H — порожня зі штилем, F — зафарбована, B — квадратна; стрілка показує напрям штиля. З 17 нот рядка модель знайшла всі, тип правильний у 15; ще 6 відповідей зайві (кінці штилів, шматок ключа, пляма).</figcaption></figure>
+      <figure class="wide"><img src="img/lahyre_model_R7.jpg" alt="Відповіді моделі на рядку Ла Іра" loading="lazy" width="1064" height="329"><figcaption>Сьомий рядок Ла Іра: 9 нот з 11 знайдено, усі з правильним типом, зайвих немає.</figcaption></figure>
+    </li>
+    <li>
+      <h3>Числа</h3>
+      <p>Кожна нота стає парою чисел: висота в щаблях і, за формою, відносна тривалість (ціла 4, порожня 2, зафарбована 1, крапка додає половину). Ключа ми не знаємо, тому порівнюємо лише відстані між нотами. З тривалостей так само беремо лише відношення сусідніх нот.</p>
+    </li>
+    <li>
+      <h3>Пошук</h3>
+      <p>Дві бази. <strong>PDMX</strong> — відкрита збірка нот із MuseScore: 483 662 голоси, 46,3 млн нот; до неї ми додали чотири голоси мотету з Караваджо, бо його там не було. <strong>RISM</strong> — міжнародний каталог музичних джерел: 2 048 200 початків творів із 1,59 млн записів, здебільшого рукописи 1600–1850 років.</p>
+      <p>Читання з картини ніколи не буває чистим: є пропущені ноти, зайві знаки й похибки висоти. Тому пошук терпить помилки і йде в три етапи:</p>
+      <ol class="plain">
+        <li>Кожні 6 сусідніх нот рядка пробують у кожному місці кожного голосу. Де вони лягають, вони «голосують» за місце, з якого міг би починатися рядок.</li>
+        <li>Найкращі 40 000 місць перевіряємо всім рядком за формулою нижче.</li>
+        <li>Для сторінки рядки мають іти один за одним у тому самому голосі.</li>
+      </ol>
+      <div class="formula">оцінка позначки = 1 − (d / τ)², якщо поруч є нота (d — різниця висот у щаблях після спільного зсуву)<br>позначка без ноти: −1,0 · нота без позначки: −0,6 · оцінка рядка = сума / кількість позначок (1,0 = ідеально)<br>τ = 0,6 щабля для чітких знімків, 1,0 для дрібних · ритм: +0,5 за кожну пару сусідніх нот зі збіжним відношенням тривалостей; незбіг нічого не коштує</div>
+      <p>Для RISM ті самі правила застосовуємо до перших 20 нот кожного твору: картина часто показує саме початок.</p>
+    </li>
+    <li>
+      <h3>Перевірка</h3>
+      <ul class="plain">
+        <li>План і пороги успіху записуємо до того, як читати ноти.</li>
+        <li>Читання фіксуємо з контрольною сумою SHA-256 до будь-якого пошуку і після цього не змінюємо.</li>
+        <li>Контроль: ті самі ноти в перемішаному порядку. Якщо перемішані дають той самий результат, збіг випадковий.</li>
+        <li>Усе, що зроблено після того, як ми побачили відповідь, позначаємо окремо.</li>
+      </ul>
+    </li>
+  </ol>
+</section>
+
+<section class="wide stack" id="chysla">
+  <div class="col stack-s"><div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><h2>Числа і швидкість</h2><p>Усе пораховано на ноутбуці MacBook Pro з процесором Apple M3 Pro, без серверів.</p></div>
+  <div class="figures">
+    <div class="fig"><b>483 662</b><span>голоси в базі PDMX, 46,3 млн нот</span></div>
+    <div class="fig"><b>2 048 200</b><span>початків творів у каталозі RISM</span></div>
+    <div class="fig"><b>3,5–5,9 с</b><span>порівняти один рядок із 35,4 млн місць</span></div>
+    <div class="fig"><b>2,5–4 хв</b><span>знайти цілу сторінку з допуском на помилки</span></div>
+    <div class="fig"><b>10–22 хв</b><span>навчити модель знаків на ноутбуці</span></div>
+    <div class="fig"><b>×130</b><span>менше випадкових збігів, якщо додати ритм (8 нот)</span></div>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Що вимірювали</th><th>Результат</th><th>Що це означає</th></tr></thead>
+    <tbody>
+      <tr><td>Модель знаків, Караваджо (тип ноти відомий з видання)</td><td class="num">84 з 94 знайдено; тип правильний у 74</td><td>Модель бачила лише штучні рядки</td></tr>
+      <tr><td>Модель знаків, Ван Утрехт (6 точок між лінійками)</td><td class="num">83 з 87 знайдено; тип 97 зі 113</td><td>Тип ноти видно навіть на дуже дрібному знімку</td></tr>
+      <tr><td>Модель знаків, Ла Ір (тип записаний оком)</td><td class="num">62–72 з 84; тип 56–66</td><td>Бліді порожні голівки модель іноді пропускає</td></tr>
+      <tr><td>Лінійки від моделі проти лінійок, виміряних оком</td><td class="num">здебільшого до 0,3 щабля</td><td>На лівому краї рядка до 1 щабля</td></tr>
+      <tr><td>Ритм у пошуку, Караваджо, 8 нот</td><td class="num">1 431 → 11 місць</td><td>Правильне місце лишається</td></tr>
+      <tr><td>Ритм у пошуку, Ла Ір, вісім рядків</td><td class="num">8 113 → 43 місця</td><td>Але дві помилки у формах із дев'яти викидають правильну відповідь, тому ритм додаємо м'яко</td></tr>
+      <tr><td>Пошук серед 2 млн початків</td><td class="num">≈ 1–1,5 хв</td><td>Один рядок, з допуском на помилки</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="col stack" id="kontrol">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Відомі відповіді</h2>
+  <p>Тут твір уже встановили люди. Ці картини перевіряють, чи метод знаходить правильну відповідь сам.</p>
+
+  <article class="case">
+    <div class="case-head"><h3>Віже-Лебрен, «Баронеса де Крюссоль», 1785</h3><span class="pill control">контроль</span></div>
+    <p>Музей августинців, Тулуза. На аркуші написано «Hymne d'Echo et Narcisse». Ми прочитали ноти вокального рядка, не дивлячись на напис, і шукали в каталозі початків.</p>
+    <figure class="wide"><img src="img/vigee_lebrun_figure.jpg" alt="Віже-Лебрен: аркуш і порівняння з каталогом" loading="lazy" width="1400" height="947"><figcaption>Картина, аркуш і той самий початок мелодії в каталозі RISM.</figcaption></figure>
+    <ul class="plain">
+      <li>Читання оком (перші 10 нот): у каталозі збігаються лише записи Ґлюка: гімн «Le dieu de Paphos» і хор «Trionfi Amor» з «Орфея», що має той самий початок.</li>
+      <li>Читання моделлю (лінійки і ноти без людини): Ґлюк перший серед 2 048 200 початків, 0,64 проти 0,57 у наступного твору.</li>
+    </ul>
+  </article>
+
+  <article class="case">
+    <div class="case-head"><h3>Караваджо, «Відпочинок на шляху до Єгипту»</h3><span class="pill control">контроль</span></div>
+    <p>Галерея Доріа-Памфілі, Рим. Янгол грає з нотного зошита; музикознавці давно встановили верхній голос мотету Ноеля Баулдевейна «Quam pulchra es». Мотету немає в PDMX, тому ми додали його чотири голоси з відкритого видання.</p>
+    <div class="pair wide">
+      <figure><img src="img/caravaggio_painting.jpg" alt="Караваджо, Відпочинок на шляху до Єгипту" loading="lazy" width="1400" height="1129"><figcaption>Караваджо, «Відпочинок на шляху до Єгипту», бл. 1597.</figcaption></figure>
+      <figure><img src="img/caravaggio_strip_S4.jpg" alt="Вирівняний рядок із нотами Караваджо" loading="lazy" width="1100" height="289"><figcaption>Четвертий рядок нотного зошита після вирівнювання, збільшено вчетверо.</figcaption></figure>
+    </div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Читання</th><th>Сторінка: мотет проти другого голосу</th><th>Рядки, де мотет перший сам</th></tr></thead>
+      <tbody>
+        <tr><td>Стара програма без навчання</td><td class="num">0,689 проти 0,460</td><td class="num">1, 3, 4</td></tr>
+        <tr><td>Модель, без ритму</td><td class="num">0,556 проти 0,303</td><td class="num">2, 3, 5</td></tr>
+        <tr><td>Модель, з ритмом</td><td class="num">0,787 проти 0,380</td><td class="num">2, 3, 4, 5</td></tr>
+        <tr><td>Модель, ноти перемішано</td><td class="num">мотет 151-й</td><td class="num">—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="note"><strong>Застереження.</strong> Вигляд штучних рядків я підбирав, дивлячись на цю картину, тож це не сліпий тест моделі.</p>
+  </article>
+
+  <article class="case">
+    <div class="case-head"><h3>Ван Утрехт, «Бенкетний натюрморт», 1644</h3><span class="pill control">контроль</span></div>
+    <p>Рейксмузей, SK-C-301. Розгорнута басова книга. Ліву сторінку встановив Джованні Паоло Ді Стефано (2023): бас шансону Томаса Крекійона «Pour ung plaisir». Ми прочитали рядки наосліп, не знаючи цієї відповіді для лівої сторінки. Між лінійками на знімку лише 6 точок.</p>
+    <figure class="wide"><img src="img/utrecht_painting.jpg" alt="Адріан ван Утрехт, Бенкетний натюрморт" loading="lazy" width="1400" height="1096"><figcaption>Адріан ван Утрехт, «Бенкетний натюрморт з папугою, собакою і мавпою», 1644.</figcaption></figure>
+    <figure class="wide"><img src="img/utrecht_fit_L4.jpg" alt="Четвертий рядок і голос Крекійона" loading="lazy" width="1300" height="456"><figcaption>Четвертий рядок: позначки, прочитані наосліп, і ноти голосу Крекійона на знайденому місці.</figcaption></figure>
+    <figure class="wide"><img src="img/utrecht_model_L4.jpg" alt="Лінійки і ноти, знайдені моделлю" loading="lazy" width="1300" height="231"><figcaption>Той самий рядок: лінійки (зелена і помаранчева) і ноти знайшла модель без людини.</figcaption></figure>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Читання</th><th>Сторінка 1→2→3→4: Крекійон проти другого</th><th>Рядки, де він перший сам</th></tr></thead>
+      <tbody>
+        <tr><td>Оком, наосліп</td><td class="num">0,541 проти 0,390 (серед 936 відібраних)</td><td class="num">1+2 разом, 4, 5</td></tr>
+        <tr><td>Модель, лінійки задано оком (план записано до запуску)</td><td class="num">0,678 проти 0,379</td><td class="num">усі п'ять</td></tr>
+        <tr><td>Модель, лінійки теж від моделі</td><td class="num">0,609 проти 0,338</td><td class="num">2, 4, 5</td></tr>
+        <tr><td>Ноти перемішано</td><td class="num">Крекійон 10-й, оцінка 0,13</td><td class="num">—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Рядки 1–4 лягають на ноти 2–112 зі 116 у голосі, по порядку; п'ятий повторює кінець. Права сторінка (Клеменс, «Mais languiray je») не прочиталася: там 3–4,6 точки між лінійками і сильна перспектива.</p>
+  </article>
+</section>
+
+<section class="col stack" id="nove">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Нові знахідки</h2>
+  <p>Тут твір раніше не називали, наскільки ми змогли знайти. В обох випадках першу підказку дали слова на аркуші, а ноти перевіряли її окремо.</p>
+
+  <article class="case">
+    <div class="case-head"><h3>Анонім, «Aria Allegretto», XVIII століття</h3><span class="pill new">нове, перевірити</span></div>
+    <p>Невідомий німецький художник, олія, 114,5 × 167 см; продавалася на аукціоні Van Ham як «„Aria Allegretto“. Vornehme Dame am Cembalo» (Вікідані Q19931252). Назву дали за заголовком аркуша; твору не вказано.</p>
+    <figure class="wide"><img src="img/aria_graun_figure.jpg" alt="Аркуш на картині і запис арії Ґрауна в каталозі" loading="lazy" width="1400" height="1058"><figcaption>Картина, аркуш, перший рядок і той самий початок у записі каталогу.</figcaption></figure>
+    <ul class="plain">
+      <li><strong>Слова.</strong> «Godi l'amabile presente istante…». Пошук у RISM за словами дав 9 записів, усі одна арія: Карл Гайнріх Ґраун, опера «Монтесума» (Берлін, 1755), GraunWV B:I:29/12. У рукописах вона має заголовок «Aria 4. Allegretto», сопрановий ключ, один дієз і розмір 3/4, як на картині.</li>
+      <li><strong>Ноти.</strong> Модель прочитала перший рядок сама. Серед 2 048 200 початків найвищу оцінку (0,84) мають три твори: арія Ґрауна, пісня Кноха (XIX ст.) і «Alleluia» Казалі. Розмір 3/4, написаний на аркуші, лишає тільки Ґрауна: у Кноха 6/8, у Казалі 2/4. Перемішані ноти дають не більше 0,79, і арії серед найкращих немає.</li>
+      <li><strong>Що це дає картині.</strong> Вона не раніша за 1755 рік і походить із середовища, де ходили списки берлінських оперних арій.</li>
+    </ul>
+    <figure class="wide"><img src="img/aria_model_line.jpg" alt="Перший рядок арії з відповідями моделі" loading="lazy" width="1300" height="205"><figcaption>Перший рядок аркуша: лінійки і ноти, знайдені моделлю. Дрібні ноти з ребрами вона ще пропускає.</figcaption></figure>
+    <p class="note"><strong>Застереження.</strong> Перший пошук я зробив на вирізці не того масштабу: модель прочитала ключ і розмір як ноти, і арія була 579-ю. Повторний пошук зроблено на вирізці, під яку написано інструмент; параметри не змінювалися. Опис лоту Van Ham ми не бачили, тому не знаємо, чи аукціон уже називав Ґрауна. Музикознавець арію ще не дивився.</p>
+  </article>
+
+  <article class="case">
+    <div class="case-head"><h3>Ла Ір, «Алегорія музики», 1649</h3><span class="pill new">нове: слова</span></div>
+    <p>Метрополітен-музей описує ноти як «вокальну вправу і пісню на два голоси». Ми прочитали 84 ноти правої сторінки наосліп: два голоси по 42 ноти, кожен поділено подвійною рискою на 21 + 21.</p>
+    <ul class="plain">
+      <li><strong>Пошук за нотами</strong> нічого не дав, і причина зрозуміла: французьких пісень цього кола в базах майже немає.</li>
+      <li><strong>Слова.</strong> Під першим рядком читається «C'est a ce coup qu'il faut pre(n)dre…». Так починається застільна пісня Етьєна Мульньє з його четвертої книги пісень із табулатурою для лютні (Париж, Баллар, 1633). На лівій сторінці картини якраз табулатура для лютні.</li>
+      <li><strong>Ноти з друком не збігаються.</strong> Мелодію друку 1633 року (відкритий скан Королівської бібліотеки Бельгії) порівняно з намальованою: перемішані ноти лягають так само добре в 6,5–50 % спроб. У друці один голос і розмір C, на картині два голоси і розмір «3».</li>
+      <li><strong>Але намальована музика справжня.</strong> Верхній голос займає рівно по вісім тактів у кожній частині. У другій частині 18 з 19 нот, що звучать разом, утворюють консонанс; з перемішаним нижнім голосом так виходить у 3 % спроб.</li>
+      <li><strong>Сусідня частина картини.</strong> Музей Маньєн (Діжон), де зберігаються два янголи з цієї ж композиції, пише, що ноти в руках янгола — застільна пісня Філіппо про перемогу Вакха над коханням. У збірці Філіппо 1645 року нашого тексту немає; там є інша пісня, «Ha! que ta bonté me réveille… je dis fy de Silvie», яка підходить під опис музею. Імовірно, це дві різні пісні.</li>
+    </ul>
+    <div class="pair wide">
+      <figure><img src="img/lahyre_words.jpg" alt="Слова під першим рядком на картині" loading="lazy" width="1300" height="479"><figcaption>Слова під першими рядками обох голосів на картині, контраст підсилено.</figcaption></figure>
+      <figure><img src="img/moulinie_1633_print.jpg" alt="Пісня Мульньє в друці 1633 року" loading="lazy" width="1200" height="810"><figcaption>Мульньє, «C'est à ce coup qu'il faut prendre les armes», 1633, арк. 25 зв. Королівська бібліотека Бельгії, Fétis 2.382 A (CC0).</figcaption></figure>
+    </div>
+    <div class="stack-s">
+      <p><strong>Послухати.</strong> Намальована пісня, зіграна з нашого читання (53 с, форма A A B).</p>
+      <audio controls preload="none" src="audio/la_hyre_painted_air.wav"></audio>
+      <p class="muted" style="font-size:.86rem">Це одна з можливих реконструкцій: ключі, відсутність знаків при ключі і кінцеві ноти частин вибрано нами. Не видання і не доказ.</p>
+    </div>
+    <p>Підсумок: слова встановлено, мелодії в доступних виданнях немає. Можливо, картина — єдине місце, де цей наспів записано.</p>
+  </article>
+</section>
+
+<section class="col stack" id="ni">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Де не вийшло</h2>
+  <div class="pair wide">
+    <figure><img src="img/gijsbrechts_book.jpg" alt="Нотна книга на картині Гейсбрехтса" loading="lazy" width="900" height="885"><figcaption>Гейсбрехтс, 1672: найдетальніший знімок з усіх, але ноти намальовано рівними штрихами без голівок. Висоти не прочитати.</figcaption></figure>
+    <figure><img src="img/utrecht_right_page.jpg" alt="Права сторінка книги Ван Утрехта" loading="lazy" width="1200" height="530"><figcaption>Права сторінка Ван Утрехта: 3–4,6 точки між лінійками і перспектива. Модель знаходить лише уривки станів.</figcaption></figure>
+  </div>
+  <figure class="wide"><img src="img/appiani_staff.jpg" alt="Рядок нот на портреті Аппіані" loading="lazy" width="1100" height="765"><figcaption>Аппіані, портрет музиканта (Клівленд). Початок мелодії закритий пальцем, видно продовження. Модель знайшла 10 голівок приблизно з 16 і, схоже, поставила нижню лінійку на одну нижче. Передано Codex для пошуку в базі творів 1750–1810 років.</figcaption></figure>
+  <ul class="plain">
+    <li><strong>Гондекутер, «Пташиний концерт», 1670.</strong> Читання і план зафіксовано, три варіанти пошуку дали різних випадкових переможців. Не знайдено.</li>
+  </ul>
+</section>
+
+<section class="col stack" id="mezhi">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Межі методу</h2>
+  <ul class="plain">
+    <li><strong>Роздільність.</strong> Потрібно щонайменше 5–6 точок між лінійками в музейному знімку. При 6 точках модель ще розрізняє порожні й зафарбовані голівки.</li>
+    <li><strong>Бази.</strong> Метод знаходить лише те, що є в базі. У PDMX мало старої французької пісні; RISM зберігає тільки початки творів.</li>
+    <li><strong>Художник.</strong> Якщо ноти намальовано як орнамент, читати нічого.</li>
+    <li><strong>Контрольні картини не сліпі для моделі</strong>, крім Ван Утрехта: на Караваджо і Ла Ірі я підбирав вигляд штучних рядків.</li>
+    <li><strong>Модель помиляється.</strong> Вона приймає кінці штилів за голівки і плутає ключ із нотами. Пошук із допуском це витримує, але чистого нотного запису модель ще не дає.</li>
+    <li><strong>Нових визначень лише за нотами, без жодної підказки, у нас поки немає.</strong> Обидві нові знахідки почалися зі слів.</li>
+  </ul>
+</section>
+
+<section class="col stack" id="dali">
+  <div class="staff" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h2>Що варто перевірити людині</h2>
+  <ul class="plain">
+    <li><strong>Ґраун.</strong> Опис лоту Van Ham: чи аукціон уже називав твір. Погляд музикознавця на перший рядок арії.</li>
+    <li><strong>Ла Ір.</strong> Каталог П. Розенберга і Ж. Тюїльє (1988) і стаття Габріеле Фрінгс у Gazette des Beaux-Arts (1994): чи пісню вже пов'язували з Мульньє. Чи відоме інше покладення слів «C'est à ce coup qu'il faut prendre les armes».</li>
+    <li><strong>Аппіані.</strong> Перевірка голівок і лінійок оком, пошук у базі творів 1750–1810 років.</li>
+  </ul>
+</section>
+
+<footer class="col" id="dzherela">
+  <p><strong>Зображення.</strong> Метрополітен-музей, відкритий доступ (CC0); Рейксмузей (суспільне надбання); Вікісховище (суспільне надбання: Караваджо, Віже-Лебрен, анонімна «Aria Allegretto»); Державний музей мистецтв, Копенгаген (суспільне надбання); Королівська бібліотека Бельгії (CC0); Клівлендський музей мистецтва, відкритий доступ (CC0). Вирізки й розмітка наші.</p>
+  <p><strong>Дані.</strong> PDMX — відкрита база нот у форматі MusicXML; RISM — відкриті дані каталогу (CC BY 4.0); мотет Баулдевейна — видання CPDL (копія в Internet Archive).</p>
+  <p><strong>Література.</strong> G. P. Di Stefano, «Pour un plaisir que si peu dure…», у: Art Stories from the Netherlands and Italy, 1550–1800 (Galatea, 2023), с. 329–342. Каталог Philidor, Centre de musique baroque de Versailles. Запис музею Маньєн про «Putto chantant».</p>
+  <p><strong>Файли.</strong> Усі скрипти, читання з контрольними сумами і результати лежать у робочій теці проєкту; перелік і порядок запуску — у хендофі для Codex.</p>
+</footer>
+</main>
+
+</body>
+</html>
